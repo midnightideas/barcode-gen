@@ -1,3 +1,3 @@
-[![Open in DevPod!](https://devpod.sh/assets/open-in-devpod.svg)](https://devpod.sh/open#https://github.com/kafilios/git-template)
+[![Open in DevPod!](https://devpod.sh/assets/open-in-devpod.svg)](https://devpod.sh/open#https://github.com/kafilios/code128-code-gen)
 
-# git-template
+# code128-code-gen
