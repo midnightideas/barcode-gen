@@ -35,4 +35,4 @@ npm run local
 ## Deployment
 
 Push to `main` branch. GitHub Pages serves `docs/` automatically at:
-`https://midnightideas.github.io/code128-code-gen/`
+`https://midnightideas.github.io/barcode-gen/`
