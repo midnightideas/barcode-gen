@@ -1,10 +1,10 @@
-[![Open in DevPod!](https://devpod.sh/assets/open-in-devpod.svg)](https://devpod.sh/open#https://github.com/midnightideas/code128-code-gen)
+[![Open in DevPod!](https://devpod.sh/assets/open-in-devpod.svg)](https://devpod.sh/open#https://github.com/midnightideas/barcode-gen)
 
 # Barcode Generator
 
 A simple, static barcode generator that runs entirely in the browser — no backend, no tracking, no build step. Supports Code 128, Code 39, EAN-13, EAN-8, UPC, ITF-14, Codabar, Code 93, MSI, and Pharmacode via [JsBarcode](https://github.com/lindell/JsBarcode). Built for GitHub Pages.
 
-**Live site:** https://midnightideas.github.io/code128-code-gen/
+**Live site:** https://midnightideas.github.io/barcode-gen/
 
 ## Features
 
