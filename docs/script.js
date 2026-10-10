@@ -1,3 +1,30 @@
+// docs/script.js — Barcode generation, validation, copy/download for the
+// single-page barcode generator. Loaded as a classic <script> after JsBarcode
+// in index.html.
+//
+// Three load-bearing JsBarcode/SVG workarounds live in this file — don't
+// "clean them up" without testing in Safari:
+//   1. `background: false` is passed to JsBarcode and the white background
+//      is added as a manual <rect>. JsBarcode's `style="fill:#ffffff"` is
+//      rendered as black in some browsers when pasted from the clipboard.
+//   2. `img.decode()` is awaited before drawing to canvas. Safari fires
+//      `onload` before decoding finishes, which otherwise produces a black
+//      PNG when copied to the clipboard.
+//   3. JsBarcode's target must be <svg>, <canvas>, <img>, or a plain
+//      object — a <div> throws InvalidElementException.
+//
+// File layout:
+//   1. DOM element references
+//   2. State
+//   3. Format configuration
+//   4. Rendering
+//   5. SVG → PNG
+//   6. Misc utilities
+//   7. Event handlers & init
+
+
+// ---------- 1. DOM element references ----------
+
 const formatSelect = document.getElementById('format-select');
 const textInput = document.getElementById('text-input');
 const barcodeContainer = document.getElementById('barcode-container');
@@ -6,8 +33,17 @@ const downloadBtn = document.getElementById('download-btn');
 const toast = document.getElementById('toast');
 const formatHint = document.getElementById('format-hint');
 
-let currentValue = '';
-let currentSvg = null;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+
+// ---------- 2. State ----------
+
+// The currently rendered barcode, or null when the placeholder is showing.
+// Both fields are read by the copy/download handlers and updated by render.
+const state = { value: '', svg: null };
+
+
+// ---------- 3. Format configuration ----------
 
 const HINTS = {
   'CODE128': {
@@ -65,6 +101,9 @@ const HINTS = {
   },
 };
 
+
+// ---------- 4. Rendering ----------
+
 function placeholderHtml(message, isError) {
   const messageClass = isError ? 'placeholder error' : 'placeholder';
   return `
@@ -77,25 +116,32 @@ function placeholderHtml(message, isError) {
   `;
 }
 
-function resetPlaceholder() {
-  barcodeContainer.innerHTML = placeholderHtml('Enter text to generate a barcode', false);
+function disableButtons() {
   copyBtn.disabled = true;
   downloadBtn.disabled = true;
-  currentValue = '';
-  currentSvg = null;
+}
+
+function enableButtons() {
+  copyBtn.disabled = false;
+  downloadBtn.disabled = false;
+}
+
+function showPlaceholder() {
+  barcodeContainer.innerHTML = placeholderHtml('Enter text to generate a barcode', false);
+  state.value = '';
+  state.svg = null;
+  disableButtons();
 }
 
 function showError(message) {
   barcodeContainer.innerHTML = placeholderHtml(message, true);
-  copyBtn.disabled = true;
-  downloadBtn.disabled = true;
-  currentSvg = null;
+  state.svg = null;
+  disableButtons();
 }
 
 function renderBarcode(value) {
-  // JsBarcode only accepts <svg>, <canvas>, <img>, or a plain object as a
-  // target — a <div> triggers InvalidElementException. The SVGRenderer
-  // clears the svg and sets width/height/viewBox on this same element.
+  // Replace the container with a fresh <svg>; JsBarcode mutates its target,
+  // so we can't reuse a previous render. See gotcha #3 in the file header.
   barcodeContainer.innerHTML = '<svg id="barcode"></svg>';
   const svg = document.getElementById('barcode');
 
@@ -107,19 +153,19 @@ function renderBarcode(value) {
       height: 80,
       margin: 8,
       lineColor: '#000000',
-      background: false,  // suppress JsBarcode's default white background
+      // background: false (gotcha #1) — we add a white <rect> ourselves below.
+      background: false,
     });
   } catch (err) {
     showError(`Cannot encode "${value}" as ${formatSelect.value}: ${err.message || err}`);
     return;
   }
 
-  // Add the white background ourselves. JsBarcode's `background` option
-  // emits `style="fill:#ffffff;"` which some browsers render as black
-  // instead of white — using the `fill` attribute on a rect we add
-  // ourselves avoids that parser quirk.
+  // Manual white background rect. fill="#ffffff" works consistently across
+  // renderers; JsBarcode's `style="fill:#ffffff"` is unreliable when the
+  // result is serialized to a data URL and pasted from the clipboard.
   const vb = svg.viewBox.baseVal;
-  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  const bg = document.createElementNS(SVG_NS, 'rect');
   bg.setAttribute('x', '0');
   bg.setAttribute('y', '0');
   bg.setAttribute('width', String(vb.width || svg.getBoundingClientRect().width));
@@ -127,101 +173,87 @@ function renderBarcode(value) {
   bg.setAttribute('fill', '#ffffff');
   svg.insertBefore(bg, svg.firstChild);
 
-  currentSvg = svg;
-  currentValue = value;
-  copyBtn.disabled = false;
-  downloadBtn.disabled = false;
+  state.svg = svg;
+  state.value = value;
+  enableButtons();
 }
 
-function validateAndRender() {
-  const value = textInput.value.trim();
-
+function render(value) {
   if (!value) {
-    resetPlaceholder();
+    showPlaceholder();
     return;
   }
-
   const format = formatSelect.value;
   if (!HINTS[format].validate(value)) {
     showError(`Invalid input for ${format}. ${HINTS[format].hint}`);
     return;
   }
-
   renderBarcode(value);
 }
 
-function getSvgDimensions(svgEl) {
-  // Prefer the width/height attributes JsBarcode sets on the SVG. Fall back
-  // to the rendered bounding box, then the viewBox, then a sane default.
-  let width = parseFloat(svgEl.getAttribute('width')) || 0;
-  let height = parseFloat(svgEl.getAttribute('height')) || 0;
-
-  if (!width || !height) {
-    const rect = svgEl.getBoundingClientRect();
-    width = width || Math.round(rect.width);
-    height = height || Math.round(rect.height);
-  }
-
-  if (!width || !height) {
-    const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
-    if (vb && vb.width) {
-      width = width || vb.width;
-      height = height || vb.height;
-    }
-  }
-
-  return {
-    width: Math.max(1, Math.round(width || 200)),
-    height: Math.max(1, Math.round(height || 80)),
-  };
+function applyFormatMeta() {
+  const meta = HINTS[formatSelect.value];
+  formatHint.textContent = meta.hint;
+  textInput.placeholder = meta.placeholder;
 }
 
-function svgToPngBlob(svgEl, scale) {
+
+// ---------- 5. SVG → PNG ----------
+
+// Best-effort dimension lookup. Prefer the width/height attributes JsBarcode
+// sets on the <svg>; fall back to the rendered bounding box, then the
+// viewBox, then a sane default.
+function getSvgDimensions(svgEl) {
+  const attrW = parseFloat(svgEl.getAttribute('width')) || 0;
+  const attrH = parseFloat(svgEl.getAttribute('height')) || 0;
+  if (attrW && attrH) return { width: attrW, height: attrH };
+
+  const rect = svgEl.getBoundingClientRect();
+  if (rect.width && rect.height) {
+    return { width: Math.round(rect.width), height: Math.round(rect.height) };
+  }
+
+  const vb = svgEl.viewBox && svgEl.viewBox.baseVal;
+  if (vb && vb.width && vb.height) return { width: vb.width, height: vb.height };
+
+  return { width: 200, height: 80 };
+}
+
+// Clone the SVG, set explicit width/height, add a white background rect,
+// and return a data: URL that <img> can load.
+function svgToDataUrl(svgEl) {
+  const clone = svgEl.cloneNode(true);
+  if (!clone.getAttribute('xmlns')) {
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  }
+
+  const { width, height } = getSvgDimensions(svgEl);
+  clone.setAttribute('width', String(width));
+  clone.setAttribute('height', String(height));
+
+  // White background rect inside the SVG itself. Without this, Safari can
+  // render the data URL as transparent, which then shows up as a black image
+  // when pasted from the clipboard.
+  const bg = document.createElementNS(SVG_NS, 'rect');
+  bg.setAttribute('width', String(width));
+  bg.setAttribute('height', String(height));
+  bg.setAttribute('fill', '#ffffff');
+  clone.insertBefore(bg, clone.firstChild);
+
+  const xml = new XMLSerializer().serializeToString(clone);
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+}
+
+// Load an image from a data URL, awaiting full decode. Gotcha #2 in the
+// file header: Safari fires `onload` before decoding is complete, which
+// otherwise produces a black canvas when drawn to.
+function loadImage(src) {
   return new Promise((resolve, reject) => {
-    const clone = svgEl.cloneNode(true);
-    if (!clone.getAttribute('xmlns')) {
-      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    }
-
-    const { width, height } = getSvgDimensions(svgEl);
-    clone.setAttribute('width', String(width));
-    clone.setAttribute('height', String(height));
-
-    // White background rect inside the SVG. Without this, Safari can render
-    // the data URL as transparent, which then shows up as a black image when
-    // pasted from the clipboard.
-    const SVG_NS = 'http://www.w3.org/2000/svg';
-    const bg = document.createElementNS(SVG_NS, 'rect');
-    bg.setAttribute('width', String(width));
-    bg.setAttribute('height', String(height));
-    bg.setAttribute('fill', '#ffffff');
-    clone.insertBefore(bg, clone.firstChild);
-
-    const xml = new XMLSerializer().serializeToString(clone);
-    const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-
     const img = new Image();
     img.onload = async () => {
       try {
-        // image.decode() forces the browser to fully decode the SVG before
-        // we draw. Safari fires `onload` before decoding is complete, which
-        // otherwise causes a black canvas — the symptom we see when copying
-        // the result to the clipboard.
-        if (typeof img.decode === 'function') {
-          await img.decode();
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(width * scale);
-        canvas.height = Math.round(height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Canvas toBlob returned null'));
-        }, 'image/png');
+        if (typeof img.decode === 'function') await img.decode();
+        resolve(img);
       } catch (err) {
         reject(err);
       }
@@ -231,6 +263,34 @@ function svgToPngBlob(svgEl, scale) {
   });
 }
 
+// Draw an image to a canvas at the given scale, return a PNG blob.
+function imageToPngBlob(img, width, height, scale) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error('Canvas toBlob returned null'));
+    }, 'image/png');
+  });
+}
+
+// End-to-end: SVG element → PNG blob. Default 2× scale for crisper output.
+function svgToPngBlob(svgEl, scale = 2) {
+  return loadImage(svgToDataUrl(svgEl)).then((img) => {
+    const { width, height } = getSvgDimensions(svgEl);
+    return imageToPngBlob(img, width, height, scale);
+  });
+}
+
+
+// ---------- 6. Misc utilities ----------
+
 function sanitizeFilename(value) {
   return value.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 40) || 'barcode';
 }
@@ -238,37 +298,29 @@ function sanitizeFilename(value) {
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add('show');
-  setTimeout(() => {
-    toast.classList.remove('show');
-  }, 2000);
+  setTimeout(() => toast.classList.remove('show'), 2000);
 }
 
-function applyFormatMeta() {
-  const meta = HINTS[formatSelect.value];
-  formatHint.textContent = meta.hint;
-  textInput.placeholder = meta.placeholder;
-}
+
+// ---------- 7. Event handlers & init ----------
 
 formatSelect.addEventListener('change', () => {
   applyFormatMeta();
-  validateAndRender();
+  render(textInput.value.trim());
 });
 
 textInput.addEventListener('input', () => {
-  validateAndRender();
+  render(textInput.value.trim());
 });
 
 textInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') {
-    textInput.blur();
-  }
+  if (e.key === 'Enter') textInput.blur();
 });
 
 copyBtn.addEventListener('click', async () => {
-  if (!currentSvg) return;
-
+  if (!state.svg) return;
   try {
-    const blob = await svgToPngBlob(currentSvg, 2);
+    const blob = await svgToPngBlob(state.svg);
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': blob }),
     ]);
@@ -279,13 +331,12 @@ copyBtn.addEventListener('click', async () => {
 });
 
 downloadBtn.addEventListener('click', async () => {
-  if (!currentSvg) return;
-
+  if (!state.svg) return;
   try {
-    const blob = await svgToPngBlob(currentSvg, 2);
+    const blob = await svgToPngBlob(state.svg);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = `${formatSelect.value}-${sanitizeFilename(currentValue)}.png`;
+    link.download = `${formatSelect.value}-${sanitizeFilename(state.value)}.png`;
     link.href = url;
     document.body.appendChild(link);
     link.click();
@@ -298,4 +349,4 @@ downloadBtn.addEventListener('click', async () => {
 });
 
 applyFormatMeta();
-resetPlaceholder();
+showPlaceholder();
