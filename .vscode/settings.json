@@ -1,0 +1,14 @@
+{
+  "terminal.integrated.profiles.linux": {
+    "Local Dev Server": {
+      "path": "/bin/bash",
+      "args": ["-c", "npm run local"]
+    }
+  },
+  "terminal.integrated.profiles.osx": {
+    "Local Dev Server": {
+      "path": "/bin/zsh",
+      "args": ["-c", "npm run local"]
+    }
+  }
+}

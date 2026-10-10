@@ -1,0 +1,22 @@
+{
+    "author": "kafilio",
+    "bugs": {
+        "url": "https://github.com/midnightideas/code128-code-gen/issues"
+    },
+    "description": "Static barcode generator for GitHub Pages. Supports Code 128 and other formats via JsBarcode.",
+    "homepage": "https://github.com/midnightideas/code128-code-gen#readme",
+    "license": "GPL-3.0",
+    "main": "index.js",
+    "name": "code128-code-gen",
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/midnightideas/code128-code-gen.git"
+    },
+    "scripts": {
+        "local": "python3 -m http.server --directory docs 8000",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "type": "commonjs",
+    "version": "1.0.0"
+}

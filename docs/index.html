@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Barcode Generator</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self';">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"
+          integrity="sha384-Kk5SjBOKprEnGfyBWfD2zROFd1Cu8kwOXxG2GIhYPcoDL2rBJS9P8Ud1ZMy4412a"
+          crossorigin="anonymous"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Barcode Generator</h1>
+
+    <div class="input-group">
+      <label for="format-select">Format</label>
+      <select id="format-select">
+        <option value="CODE128" selected>Code 128</option>
+        <option value="CODE39">Code 39</option>
+        <option value="EAN-13">EAN-13</option>
+        <option value="EAN-8">EAN-8</option>
+        <option value="UPC">UPC</option>
+        <option value="ITF14">ITF-14</option>
+        <option value="codabar">Codabar</option>
+        <option value="CODE93">Code 93</option>
+        <option value="MSI">MSI</option>
+        <option value="Pharmacode">Pharmacode</option>
+      </select>
+      <p id="format-hint" class="format-hint"></p>
+    </div>
+
+    <div class="input-group">
+      <label for="text-input">Enter text to encode</label>
+      <input
+        type="text"
+        id="text-input"
+        placeholder="Hello World"
+        autocomplete="off"
+      >
+    </div>
+
+    <div class="barcode-container" id="barcode-container">
+      <div class="placeholder">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h2v12H4zM8 6h1v12H8zM10 6h2v12h-2zM14 6h1v12h-1zM16 6h3v12h-3z" />
+        </svg>
+        <p>Enter text to generate a barcode</p>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn-copy" id="copy-btn" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        Copy
+      </button>
+      <button class="btn-download" id="download-btn" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download PNG
+      </button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Copied to clipboard!</div>
+
+  <script src="script.js"></script>
+</body>
+</html>
