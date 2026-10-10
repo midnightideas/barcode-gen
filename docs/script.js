@@ -291,8 +291,17 @@ function svgToPngBlob(svgEl, scale = 2) {
 
 // ---------- 6. Misc utilities ----------
 
-function sanitizeFilename(value) {
-  return value.replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 40) || 'barcode';
+// djb2 hash → 8 hex chars (32 bits). Deterministic and sync, so identical
+// inputs produce the same filename on repeat downloads. 32 bits is plenty
+// for a download filename: even a 1% collision rate needs ~6.5k unique
+// values. We hash the value (not the format) because the format is already
+// the filename prefix, e.g. "CODE128-4b8893a2.png".
+function shortHash(input) {
+  let hash = 5381;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) + hash + input.charCodeAt(i)) | 0;
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
 function showToast(message) {
@@ -336,7 +345,7 @@ downloadBtn.addEventListener('click', async () => {
     const blob = await svgToPngBlob(state.svg);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = `${formatSelect.value}-${sanitizeFilename(state.value)}.png`;
+    link.download = `${formatSelect.value}-${shortHash(state.value)}.png`;
     link.href = url;
     document.body.appendChild(link);
     link.click();
